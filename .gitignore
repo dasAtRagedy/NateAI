@@ -163,3 +163,6 @@ cython_debug/
 
 # Virtual environments
 venv/
+
+# Configuration files
+config.ini

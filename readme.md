@@ -11,7 +11,9 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 
 ## Goals
 
+- [x] save messages
 - [ ] save conversations
+- [ ] by default respond to prompts given beforehand
 - [ ] retrieve a list of saved conversations
 - [ ] change saved conversation directory from cli
 - [ ] insert messages from specified conversation
@@ -25,11 +27,13 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 - [ ] allow for piping file contents into terminal-gpt
 - [ ] allow for custom system prompt
 - [ ] display messages with `rich` formatting
-- [ ] interactive terminal (if feeling ambitious)
+- [ ] interactive terminal (ambitious)
 - [ ] give it a name, come on, call it Nate or something
 - [ ] add system prompt reminders after some amount of tokens generated, we don't want it straying from conversation after some time
 - [ ] add system prompt presets (as sumbodule?)
 <!-- https://github.com/mustvlad/ChatGPT-System-Prompts -->
 - [ ] custom system prompt presets
 - [ ] custom name cause why not
-- [ ] math equations rendering?
+- [ ] math equations rendering? (ambitious)
+- [ ] visual token by token generation (optional)
+- [ ] continue conversation from n-th message
