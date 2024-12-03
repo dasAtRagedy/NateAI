@@ -1,9 +1,9 @@
 """NateAI
 
-Usage: nate <message> ...
+Usage: nate [options] [--] <message> ...
 
-Options:
-    -h --help           Show this screen.
+--continue  Continue the last conversation
+--no-sys    Do not use system argument
 
 """
 import os
@@ -23,10 +23,30 @@ config.read(os.path.join(os.path.dirname(__file__), "../config.ini"))
 if "DEFAULT" not in config:
     raise Exception("[DEFAULT] section does not exist in config file")
 config = config["DEFAULT"]
+if config['ConversationFolder'][0] == '~':
+    config['ConversationFolder'] = os.path.join(Path.home(), config['ConversationFolder'][1:])
+
+args = docopt(__doc__)
 
 def main(msg):
     messages = []
-    if "SystemPrompt" in config:
+
+    home_path = f"{config['ConversationFolder']}/"
+    Path(home_path).mkdir(parents=True, exist_ok=True)
+    if args["--continue"]:
+        with open(os.path.join(home_path, "info.json"), "r") as f:
+            try:
+                info = json.load(f)
+            except json.decoder.JSONDecodeError:
+                print("Could not continue last conversation, error reading history file")
+                quit()
+        conversation_path = f"{config['ConversationFolder']}/{config["Model"]}/conversations/{info["last_hash"]}/"
+        with open(os.path.join(conversation_path, "data.json"), "r") as f:
+            messages = json.load(f)
+
+    use_cache = False if messages else True
+
+    if "SystemPrompt" in config and not args["--no-sys"]:
         messages.append({
             "role": "system", 
             "content": config["SystemPrompt"]
@@ -38,16 +58,17 @@ def main(msg):
             })
 
     hash_input = ""
-    for a, b in messages:
-        hash_input += a+b
-    conversation_hash = hashlib.sha1(hash_input.lower().encode()).hexdigest()
+    for message in messages:
+        hash_input += message["role"] + message["content"]
+    conversation_hash = info["last_hash"] if args["--continue"] else hashlib.sha1(hash_input.lower().encode()).hexdigest()
 
     conversation_path = f"{config['ConversationFolder']}/{config["Model"]}/conversations/{conversation_hash}/"
-    if (os.path.isdir(conversation_path)):
+    if (use_cache and os.path.isdir(conversation_path)):
         print("[CACHED]:")
         with open(os.path.join(conversation_path, "data.json"), "r") as f:
             messages = json.load(f)
             print(messages[-1]["content"])
+            print("Conversation ID: " + conversation_hash)
         return
 
     completion = client.chat.completions.create(
@@ -69,12 +90,16 @@ def main(msg):
         if msg["role"] == "assistant": conversation_contents_md += "\n"
 
     Path(conversation_path).mkdir(parents=True, exist_ok=True)
-    with open(os.path.join(conversation_path, "conversation.md"), "w") as f:
+    with open(os.path.join(conversation_path, "conversation.md"), "w+") as f:
         f.write(conversation_contents_md)
 
-    with open(os.path.join(conversation_path, "data.json"), "w", encoding="utf-8") as f:
+    with open(os.path.join(conversation_path, "data.json"), "w+", encoding="utf-8") as f:
         json.dump(messages, f, indent=4)
 
+    with open(os.path.join(home_path, "info.json"), "w") as f:
+        json.dump({
+            "last_hash": conversation_hash
+        }, f, indent=4)
 
 # my goat https://gist.github.com/CivilEngineerUK/dbd328b72ebee77c3471670bb91fa6df
 def serialize_completion(completion):
@@ -107,7 +132,5 @@ def serialize_completion(completion):
     }
 
 if __name__ == "__main__":
-    args = docopt(__doc__)
-    if config['ConversationFolder'][0] == '~':
-        config['ConversationFolder'] = os.path.join(Path.home(), config['ConversationFolder'][1:])
+    # pass
     main(' '.join(args["<message>"]))

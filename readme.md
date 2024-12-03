@@ -12,10 +12,10 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 ## Goals
 
 - [x] save messages
-- [ ] save conversations
-- [ ] by default respond to prompts given beforehand
+- [x] save conversations
+- [x] use cached messages to respond to known prompts
 - [ ] retrieve a list of saved conversations
-- [ ] change saved conversation directory from cli
+- [ ] change saved conversation directory from cli (optional)
 - [ ] insert messages from specified conversation
 - [ ] change model
 - [ ] retrieve a list of possible models
