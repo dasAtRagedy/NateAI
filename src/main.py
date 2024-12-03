@@ -1,12 +1,18 @@
-# import os
-import sys
+"""NateAI
+
+Usage: nate <message>
+
+Options:
+    -h --help           Show this screen.
+
+"""
 from openai import OpenAI
 import configparser
 from rich.console import Console
 from rich.markdown import Markdown
+from docopt import docopt
 
 client = OpenAI()
-
 config = configparser.ConfigParser()
 config.read("config.ini")
 if "DEFAULT" not in config:
@@ -21,7 +27,6 @@ def main(msg):
             "content": config["SystemPrompt"]
             })
 
-
     messages.append({
                 "role": "user",
                 "content": msg
@@ -35,7 +40,6 @@ def main(msg):
     print(completion.choices[0].message.content)
 
 if __name__ == "__main__":
-    # main()
-    if len(sys.argv) != 2:
-        raise Exception("No message has been provided")
-    main(sys.argv[1])
+    args = docopt(__doc__)
+    
+    main(args["<message>"])
