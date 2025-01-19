@@ -16,58 +16,71 @@ from pathlib import Path
 import hashlib
 import json
 from typing import Dict, List
+from dataclasses import dataclass
 
 client = OpenAI()
 
+@dataclass
+class Config:
+    """Config data struct"""
+    model: str
+    system_prompt: str
+    conversation_folder: str
+    message: str
+    continue_conversation: bool
+    use_system_prompt: bool
+
 class ConfigManager:
     """Handles reading and managing configs"""
+
     def __init__(self, config_name):
-        self._parse_config_file(config_name)
-        self._parse_args()
+        absolute_dir = os.path.dirname(os.path.dirname(__file__))
+        config_path = os.path.join(absolute_dir, config_name)
 
-    def _parse_args(self):
-        self.flags = docopt(__doc__)
-        if "<message>" not in self.flags:
-            raise Exception(
-                """<message> has not been provided. This exception suggests incorrect
-                module-level docstring for **docopt**"""
-                )
-        self.message = ' '.join(self.flags["<message>"])
-    
-    def _parse_config_file(self, config_name):
-        self.absolute_dir = os.path.dirname(os.path.dirname(__file__))
-        config_path = os.path.join(self.absolute_dir, config_name)
+        self.config = self._load_config(config_path)
+        self.args = self._parse_args()
 
+    def get_config(self) -> Config:
+        """Returns Config struct with all settings"""
+        conversation_folder = Path(self.config['ConversationFolder'])
+        if str(conversation_folder).startswith('~'):
+            conversation_folder = os.path.join(Path.home(), self.config['ConversationFolder'][1:])
+        
+        return Config(
+            model = self.config['Model'],
+            system_prompt = self.config.get('SystemPrompt', ''),
+            conversation_folder = conversation_folder,
+            message = ' '.join(self.args['<message>']),
+            continue_conversation = self.args['--continue'],
+            use_system_prompt = not self.args['--no-sys']
+        )
+
+    def _parse_args(self) -> dict:
+        args = docopt(__doc__)
+        if "<message>" not in args:
+            raise ValueError("Message was not provided")
+        return args
+
+    def _load_config(self, config_path: str) -> dict:
         if not os.path.isfile(config_path):
-            # FIXME: raise appropriate exception
-            raise Exception("Unable to read from config file")
+            raise FileNotFoundError(f"Config file not found: {config_path}")
 
         config = configparser.ConfigParser()
         config.read(config_path)
 
         if "DEFAULT" not in config:
-            # FIXME: raise appropriate exception
-            raise Exception("[DEFAULT] section does not exist in config file")
-        # NOTE: using attributes are inappropriate due to inability to represent flags in consistent format
-        self.config = config["DEFAULT"]
-        
-        required_keys = [
-            "Model",
-            "SystemPrompt",
-            "ConversationFolder"
-        ]
-        for key in required_keys:
-            if key not in self.config:
-                # FIXME: raise appropriate exception
-                raise Exception(f"{key} is not defined in {config_name}")
+            raise KeyError("Config file must containt a [DEFAULT] section")
 
-        if self.config['ConversationFolder'][0] == '~':
-            self.config['ConversationFolder'] = os.path.join(Path.home(), self.config['ConversationFolder'][1:])
+        required_keys = ["Model", "SystemPrompt", "ConversationFolder"]
+        missing_keys = [key for key in required_keys if key not in config['DEFAULT']]
+        if missing_keys:
+            raise KeyError(f"Missing required config keys: {', '.join(missing_keys)}")
+        return config["DEFAULT"]
 
 class ConversationManager:
     """Handles conversation state, storage and retrieval"""
-    def __init__(self, config_manager):
-        self.config_manager = config_manager
+    def __init__(self, config):
+        self.config = config
         self.messages = []
         self.conversation_hash = None
         self.retrieved = False
@@ -95,8 +108,8 @@ class ConversationManager:
     
     def retrieve_conversation(self, conversation_hash = None, model = None):
         if conversation_hash == None: conversation_hash = self.conversation_hash
-        if model == None: model = self.config_manager.config["Model"]
-        conversation_path = f"{self.config_manager.config['ConversationFolder']}/{model}/conversations/{conversation_hash}/"
+        if model == None: model = self.config.model
+        conversation_path = f"{self.config.conversation_folder}/{model}/conversations/{conversation_hash}/"
         try:
             with open(os.path.join(conversation_path, "data.json"), "r") as f:
                 self.messages = json.load(f)
@@ -118,18 +131,15 @@ class ConversationManager:
         return json.dumps(conversation, indent=4)
 
 def main():
-    cfg = ConfigManager("config.ini")
-    msg = cfg.message
-    config = cfg.config
-    args = cfg.flags
+    cfg = ConfigManager("config.ini").get_config()
     
     conversation_manager = ConversationManager(cfg)
 
     # we access info that we have to have access to
     #   immediately, for example latest conversation ID
-    home_path = f"{config['ConversationFolder']}/"
+    home_path = f"{cfg.conversation_folder}/"
     Path(home_path).mkdir(parents=True, exist_ok=True)
-    if args["--continue"]:
+    if cfg.continue_conversation:
         with open(os.path.join(home_path, "info.json"), "r") as f:
             try:
                 info = json.load(f)
@@ -139,7 +149,7 @@ def main():
         # TODO: exception handling
         ## FIXME: conversation_path is created twice
         conversation_manager.set_hash(info['last_hash'])
-        conversation_manager.retrieve_conversation(config["Model"])
+        conversation_manager.retrieve_conversation(model=cfg.model)
         # conversation_path = f"{config['ConversationFolder']}/{config["Model"]}/conversations/{info["last_hash"]}/"
         # with open(os.path.join(conversation_path, "data.json"), "r") as f:
         #     messages = json.load(f)
@@ -148,15 +158,15 @@ def main():
     use_cache = not conversation_manager.retrieved
 
     # user input
-    if "SystemPrompt" in config and not args["--no-sys"]:
+    if cfg.system_prompt and cfg.use_system_prompt:
         conversation_manager.append_message({
             "role": "system", 
-            "content": config["SystemPrompt"]
+            "content": cfg.system_prompt
             })
 
     conversation_manager.append_message({
                 "role": "user",
-                "content": msg
+                "content": cfg.message
             })
 
     # we hash only first input, mostly because we expect user to rarely repeat the exact same two inputs more than once
@@ -166,13 +176,13 @@ def main():
     # conversation_hash = info["last_hash"] if args["--continue"] else hashlib.sha1(hash_input.lower().encode()).hexdigest()
     conversation_manager.generate_hash()
 
-    conversation_path = f"{config['ConversationFolder']}/{config["Model"]}/conversations/{conversation_manager.conversation_hash}/"
+    conversation_path = f"{cfg.conversation_folder}/{cfg.model}/conversations/{conversation_manager.conversation_hash}/"
     # BUG: when we have a known conversation with multiple messages, we will print out the latest assistant's message, not 
     #   assistant's response to the first message. 
     if (use_cache and os.path.isdir(conversation_path)):
         print("[CACHED]:")
         with open(os.path.join(conversation_path, "data.json"), "r") as f:
-            conversation_manager.retrieve_conversation(model=config["Model"])
+            conversation_manager.retrieve_conversation(model=cfg.model)
             # messages = json.load(f)
             print(conversation_manager.messages[-1]["content"])
             print("Conversation ID: " + conversation_manager.conversation_hash)
@@ -180,7 +190,7 @@ def main():
 
     # nate output
     completion = client.chat.completions.create(
-        model = config["Model"],
+        model = cfg.model,
         messages = conversation_manager.messages
     )
     conversation_manager.append_message({
