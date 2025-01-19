@@ -25,7 +25,7 @@ class Config:
     """Config data struct"""
     model: str
     system_prompt: str
-    conversation_folder: str
+    conversation_folder: Path
     message: str
     continue_conversation: bool
     use_system_prompt: bool
@@ -42,10 +42,11 @@ class ConfigManager:
 
     def get_config(self) -> Config:
         """Returns Config struct with all settings"""
-        conversation_folder = Path(self.config['ConversationFolder'])
-        if str(conversation_folder).startswith('~'):
-            conversation_folder = os.path.join(Path.home(), self.config['ConversationFolder'][1:])
-        
+        if str(self.config['ConversationFolder']).startswith('~'):
+            conversation_folder = Path.home() / self.config['ConversationFolder'][1:]
+        else:
+            conversation_folder = Path(self.config['ConversationFolder'])
+
         return Config(
             model = self.config['Model'],
             system_prompt = self.config.get('SystemPrompt', ''),
