@@ -10,6 +10,45 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 - Does not rely on REPL
 - Does not run as a service in the background
 
+## Prerequisites
+
+You have to have openai api key connected to an account with a valid balance
+Installed Python 3.12.2
+Installed Python module "venv"
+Installed Git
+
+## Setup
+
+Open commandline with Git installed
+
+Navigate to the directory where you want it installed
+
+Clone the repository: `git clone https://github.com/dasAtRagedy/NateAI.git`
+
+Navigate into the cloned repository
+
+Create a virtual environment: `python -m venv venv`
+
+Activate the virtual environment:
+- On Windows, type: `venv\Scripts\activate`
+- On Linux, type: `source venv/bin/activate`
+
+Install packages from requirements.txt: `pip install -r requirements.txt`
+
+Copy/rename `example_config.ini` to `config.ini`: `cp ./example_config.ini ./config.ini`
+
+Change values in `config.ini` if necessary
+
+Export openai api key:
+- On Windows, type: `set OPENAI_API_KEY="EXAMPLE-API-KEY"`
+- On Linux, type: `export OPENAI_API_KEY="EXAMPLE-API-KEY"`
+
+## Usage
+
+Use `python src/main.py 'Hey, nate, whats up?'`
+
+For all available options, use `python src/main.py --help`
+
 ## Goals
 
 - [x] save messages
@@ -32,8 +71,7 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 - [ ] give it a name, come on, call it Nate or something
 - [ ] add system prompt reminders after some amount of tokens generated, we don't want it straying from conversation after some time
 - [ ] add system prompt presets (as sumbodule?)
-<!-- https://github.com/mustvlad/ChatGPT-System-Prompts -->
-- [ ] custom system prompt presets
+- [ ] custom system prompt presets (optional) <!-- https://github.com/mustvlad/ChatGPT-System-Prompts -->
 - [ ] custom name cause why not
 - [ ] math equations rendering? (ambitious)
 - [ ] visual token by token generation (optional)
