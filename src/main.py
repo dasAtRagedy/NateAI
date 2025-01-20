@@ -70,7 +70,7 @@ class ConfigManager:
         config.read(config_path)
 
         if "DEFAULT" not in config:
-            raise KeyError("Config file must containt a [DEFAULT] section")
+            raise KeyError("Config file must contain a [DEFAULT] section")
 
         required_keys = ["Model", "SystemPrompt", "ConversationFolder"]
         missing_keys = [key for key in required_keys if key not in config['DEFAULT']]
@@ -80,16 +80,51 @@ class ConfigManager:
 
 class ConversationManager:
     """Handles conversation state, storage and retrieval"""
+
     def __init__(self, config):
         self.config = config
         self.messages = []
         self.conversation_hash = None
         self.retrieved = False
+        self.storage = StorageManager(
+            base_folder = self.config.conversation_folder,
+            model = self.config.model
+        )
+        self._initialize_conversation()
     
-    def generate_hash(self):
+    # NEEDS REWORK, LIKE YESTERDAY
+    def _initialize_conversation(self):
+        """Sets up conversation"""
+        if self.config.continue_conversation:
+            self.load_latest_conversation()
+        if self.config.use_system_prompt:
+            self.append_message({
+                'role': 'system',
+                'content': self.config.system_prompt
+            })
+        self.append_message({
+            "role": "user",
+            "content": self.config.message
+        })
+        self._generate_hash()
+
+    def save_conversation(self):
+        """Saves current conversation"""
+        self.storage.save_conversation(self.conversation_hash, self.messages)
+    
+    def load_conversation(self, conversation_hash: str):
+        """Loads conversation from a given hash"""
+        self.messages = self.storage.load_conversation(conversation_hash)
+        self.conversation_hash = conversation_hash
+
+    def load_latest_conversation(self):
+        """Loads latest conversation"""
+        self.load_conversation(self.storage.get_last_conversation_hash())
+    
+    def _generate_hash(self):
+        """Generates SHA1 hash of messages until (not including) first completion"""
         if not self.messages:
-            # FIXME: raise appropriate exception
-            raise Exception("No user prompt or system prompt was provided")
+            raise ValueError("No user prompt or system prompt was provided")
         hash_input = ""
         for i, message in enumerate(self.messages):
             if i >= 2 or message["role"] == "assistant": break    
@@ -107,18 +142,17 @@ class ConversationManager:
         for message in messages:
             self.append_message(message)
     
-    def retrieve_conversation(self, conversation_hash = None, model = None):
-        if conversation_hash == None: conversation_hash = self.conversation_hash
-        if model == None: model = self.config.model
-        conversation_path = f"{self.config.conversation_folder}/{model}/conversations/{conversation_hash}/"
-        try:
-            with open(os.path.join(conversation_path, "data.json"), "r") as f:
-                self.messages = json.load(f)
-        except Exception as e:
-            print(f"ERROR: Could not load conversation with hash {conversation_hash}")
-            print(f"Exit with exception: {e}")
-            quit()
-        self.retrieved = True
+    # def load_conversation(self, conversation_hash):
+    #     if model == None: model = self.config.model
+    #     conversation_path = f"{self.config.conversation_folder}/{model}/conversations/{conversation_hash}/"
+    #     try:
+    #         with open(os.path.join(conversation_path, "data.json"), "r") as f:
+    #             self.messages = json.load(f)
+    #     except Exception as e:
+    #         print(f"ERROR: Could not load conversation with hash {conversation_hash}")
+    #         print(f"Exit with exception: {e}")
+    #         quit()
+    #     self.retrieved = True
     
     def conversation_to_markdown(self, messages = None):
         if messages == None: messages = self.messages
@@ -130,99 +164,105 @@ class ConversationManager:
     
     def conversation_to_json(conversation):
         return json.dumps(conversation, indent=4)
+    
+class StorageManager:
+    """Handles file operations and storage"""
+
+    def __init__(self, base_folder: Path, model: str):
+        self.base_folder = base_folder
+        self.model = model
+        self._ensure_base_folder()
+
+    def save_conversation(self, conversation_hash: str, messages: List[Dict[str, str]]):
+        """Saves conversation data to storage"""
+        conversation_path = self._get_conversation_path(conversation_hash)
+        conversation_path.mkdir(parents=True, exist_ok=True)
+        
+        with open(conversation_path / 'data.json', "w+", encoding="utf-8") as f:
+            json.dump(messages, f, indent=4)
+
+        self._save_markdown(conversation_path / 'conversation.md', messages)
+        self._update_last_conversation(conversation_hash)
+
+    def load_conversation(self, conversation_hash: str) -> List[Dict[str, str]]:
+        """Loads conversation data from storage"""
+        conversation_path = self._get_conversation_path(conversation_hash)
+        data_file = conversation_path / 'data.json'
+        
+        if not data_file.exists():
+            raise FileNotFoundError(f"No conversation found with hash: {conversation_hash}")
+        try:
+            with open(data_file) as f:
+                return json.load(f)
+        except (json.JSONDecodeError) as e:
+            print(f"Could not open data file of conversation with specified hash: {conversation_hash}")
+            print(e)
+            quit()
+
+    def get_last_conversation_hash(self) -> str:
+        """Retrieves hash of the previous conversation"""
+        try:
+            with open(self.base_folder / 'info.json') as f:
+                return json.load(f).get('last_hash')
+        except (json.JSONDecodeError, KeyError) as e:
+            print('Could not continue last conversation, error while reading history file')
+            print(e)
+            quit()
+
+    def conversation_exists(self, conversation_hash: str) -> bool:
+        """Checks if conversation exists"""
+        return self._get_conversation_path(conversation_hash).exists()
+
+    def _get_conversation_path(self, conversation_hash: str) -> Path:
+        """Constructs path for a conversation with a specific hash"""
+        return self.base_folder / self.model / 'conversations' / conversation_hash
+    
+    def _ensure_base_folder(self):
+        """Ensures base storage folder exists"""
+        self.base_folder.mkdir(parents=True, exist_ok=True)
+
+    def _save_markdown(self, path: Path, messages: List[Dict[str, str]]):
+        """Saves conversation in Markdown format"""
+        markdown = ""
+        for msg in messages:
+            markdown += f"**{msg["role"].title()}**:\n{msg["content"]}\n"
+            if msg["role"] == "assistant":
+                markdown += "\n"
+        
+        with open(path, "w+") as f:
+            f.write(markdown)
+
+    def _update_last_conversation(self, conversation_hash: str):
+        """Updates info file with latest conversation hash"""
+        with open(os.path.join(self.base_folder, "info.json"), "w") as f:
+            json.dump({"last_hash": conversation_hash}, f, indent=4)
 
 def main():
     cfg = ConfigManager("config.ini").get_config()
     
     conversation_manager = ConversationManager(cfg)
 
-    # we access info that we have to have access to
-    #   immediately, for example latest conversation ID
-    home_path = f"{cfg.conversation_folder}/"
-    Path(home_path).mkdir(parents=True, exist_ok=True)
-    if cfg.continue_conversation:
-        with open(os.path.join(home_path, "info.json"), "r") as f:
-            try:
-                info = json.load(f)
-            except json.decoder.JSONDecodeError:
-                print("Could not continue last conversation, error reading history file")
-                quit()
-        # TODO: exception handling
-        ## FIXME: conversation_path is created twice
-        conversation_manager.set_hash(info['last_hash'])
-        conversation_manager.retrieve_conversation(model=cfg.model)
-        # conversation_path = f"{config['ConversationFolder']}/{config["Model"]}/conversations/{info["last_hash"]}/"
-        # with open(os.path.join(conversation_path, "data.json"), "r") as f:
-        #     messages = json.load(f)
-
-    # we have added messages to message queue if we had any already
-    use_cache = not conversation_manager.retrieved
-
-    # user input
-    if cfg.system_prompt and cfg.use_system_prompt:
-        conversation_manager.append_message({
-            "role": "system", 
-            "content": cfg.system_prompt
-            })
-
-    conversation_manager.append_message({
-                "role": "user",
-                "content": cfg.message
-            })
-
-    # we hash only first input, mostly because we expect user to rarely repeat the exact same two inputs more than once
-    # hash_input = ""
-    # for message in messages:
-    #     hash_input += message["role"] + message["content"]
-    # conversation_hash = info["last_hash"] if args["--continue"] else hashlib.sha1(hash_input.lower().encode()).hexdigest()
-    conversation_manager.generate_hash()
-
-    conversation_path = f"{cfg.conversation_folder}/{cfg.model}/conversations/{conversation_manager.conversation_hash}/"
     # BUG: when we have a known conversation with multiple messages, we will print out the latest assistant's message, not 
-    #   assistant's response to the first message. 
-    if (use_cache and os.path.isdir(conversation_path)):
-        print("[CACHED]:")
-        with open(os.path.join(conversation_path, "data.json"), "r") as f:
-            conversation_manager.retrieve_conversation(model=cfg.model)
-            # messages = json.load(f)
-            print(conversation_manager.messages[-1]["content"])
-            print("Conversation ID: " + conversation_manager.conversation_hash)
-        return
-
-    # nate output
-    completion = client.chat.completions.create(
-        model = cfg.model,
-        messages = conversation_manager.messages
-    )
-    conversation_manager.append_message({
-        "role": "assistant",
-        "content": completion.choices[0].message.content,
-        "completion": serialize_completion(completion) # we have future logging in mind
-        })
+    #   assistant's response to the first message.
+    if conversation_manager.storage.conversation_exists(conversation_manager.conversation_hash):
+        print('[CACHED]:')
+        conversation_manager.load_conversation(conversation_manager.conversation_hash)
+    else:
+        # nate output
+        completion = client.chat.completions.create(
+            model = cfg.model,
+            messages = conversation_manager.messages
+        )
+        conversation_manager.append_message({
+            "role": "assistant",
+            "content": completion.choices[0].message.content,
+            "completion": serialize_completion(completion)
+            })
 
     print(conversation_manager.messages[-1]["content"])
     print("Conversation ID: " + conversation_manager.conversation_hash)
 
-    # conversation creating in string
-    conversation_contents_md = ""
-    for msg in conversation_manager.messages:
-        conversation_contents_md += f"**{msg["role"].title()}**:\n{msg["content"]}\n"
-        if msg["role"] == "assistant": conversation_contents_md += "\n"
-
-    # conversation saving md
-    Path(conversation_path).mkdir(parents=True, exist_ok=True)
-    with open(os.path.join(conversation_path, "conversation.md"), "w+") as f:
-        f.write(conversation_manager.conversation_to_markdown())
-
-    # conversation saving json
-    with open(os.path.join(conversation_path, "data.json"), "w+", encoding="utf-8") as f:
-        json.dump(conversation_manager.messages, f, indent=4)
-
-    # updating info file with latest used hash
-    with open(os.path.join(home_path, "info.json"), "w") as f:
-        json.dump({
-            "last_hash": conversation_manager.conversation_hash
-        }, f, indent=4)
+    conversation_manager.save_conversation()
 
 # my goat https://gist.github.com/CivilEngineerUK/dbd328b72ebee77c3471670bb91fa6df
 def serialize_completion(completion):
