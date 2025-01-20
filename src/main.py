@@ -91,8 +91,7 @@ class ConversationManager:
             model = self.config.model
         )
         self._initialize_conversation()
-    
-    # NEEDS REWORK, LIKE YESTERDAY
+
     def _initialize_conversation(self):
         """Sets up conversation"""
         if self.config.continue_conversation:
@@ -141,18 +140,6 @@ class ConversationManager:
     def append_messages(self, messages: List[Dict[str, str]]):
         for message in messages:
             self.append_message(message)
-    
-    # def load_conversation(self, conversation_hash):
-    #     if model == None: model = self.config.model
-    #     conversation_path = f"{self.config.conversation_folder}/{model}/conversations/{conversation_hash}/"
-    #     try:
-    #         with open(os.path.join(conversation_path, "data.json"), "r") as f:
-    #             self.messages = json.load(f)
-    #     except Exception as e:
-    #         print(f"ERROR: Could not load conversation with hash {conversation_hash}")
-    #         print(f"Exit with exception: {e}")
-    #         quit()
-    #     self.retrieved = True
     
     def conversation_to_markdown(self, messages = None):
         if messages == None: messages = self.messages
