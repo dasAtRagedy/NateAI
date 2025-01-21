@@ -230,6 +230,7 @@ class AIClient(Protocol):
         ...
 
     def generate_completion(self, model: str, messages: List[Dict[str, str]]):
+        """Generate a completion with the AI model"""
         ...
         
 
@@ -249,6 +250,7 @@ class OpenAIClient(AIClient):
     # my goat https://gist.github.com/CivilEngineerUK/dbd328b72ebee77c3471670bb91fa6df
     # for some reason OpenAI completions cannot be saved in json by default
     def serialize_completion(completion):
+        """Returns completion in a serializable format"""
         return {
             "id": completion.id,
             "choices": [
