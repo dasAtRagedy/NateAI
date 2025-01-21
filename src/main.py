@@ -140,14 +140,6 @@ class ConversationManager:
         for message in messages:
             self.append_message(message)
     
-    def conversation_to_markdown(self, messages = None):
-        if messages == None: messages = self.messages
-        conversation_contents_md = ""
-        for msg in messages:
-            conversation_contents_md += f"**{msg["role"].title()}**:\n{msg["content"]}\n"
-            if msg["role"] == "assistant": conversation_contents_md += "\n"
-        return conversation_contents_md
-    
     def conversation_to_json(conversation):
         return json.dumps(conversation, indent=4)
     
@@ -237,7 +229,7 @@ class AIClient(Protocol):
 class OpenAIClient(AIClient):
     """Chat client used for communication with models of OpenAI"""
 
-    def __init__(self, *, client: OpenAI):
+    def __init__(self, client: OpenAI):
         self.client = client
 
     def generate_completion(self, model: str, messages: List[Dict[str, str]]):
@@ -249,6 +241,7 @@ class OpenAIClient(AIClient):
 
     # my goat https://gist.github.com/CivilEngineerUK/dbd328b72ebee77c3471670bb91fa6df
     # for some reason OpenAI completions cannot be saved in json by default
+    @staticmethod
     def serialize_completion(completion):
         """Returns completion in a serializable format"""
         return {
@@ -279,29 +272,52 @@ class OpenAIClient(AIClient):
             }
         }
 
+class NateAI():
+    """Main application class"""
+
+    def __init__(self, config: Config, conversation_manager: ConversationManager, client: AIClient):
+        self.config = config
+        self.conversation = conversation_manager
+        self.client = client
+
+    def run(self):
+        """Main execution flow"""
+        if not self._try_load_cache():
+            completion = self.client.generate_completion(self.config.model, self.conversation.messages)
+            self.conversation.append_message({
+                'role': "assistant",
+                'content': completion['choices'][0]['message']['content'],
+                'completion': completion
+                })
+            self.conversation.save_conversation()
+
+        print(self.conversation.messages[-1]['content'])
+        print(f'Conversation ID: {self.conversation.conversation_hash}')
+
+    def _try_load_cache(self) -> bool:
+        """Attempts to retrieve conversation from cache"""
+        if self.conversation.storage.conversation_exists(self.conversation.conversation_hash):
+            print('[CACHED]:')
+            self.conversation.load_conversation(self.conversation.conversation_hash)
+            return True
+        return False
+
 def main():
-    client = OpenAIClient(OpenAI())
-    cfg = ConfigManager("config.ini").get_config()
-    conversation_manager = ConversationManager(cfg)
-
-    # BUG: when we have a known conversation with multiple messages, we will print out the latest assistant's message, not 
-    #   assistant's response to the first message.
-    if conversation_manager.storage.conversation_exists(conversation_manager.conversation_hash):
-        print('[CACHED]:')
-        conversation_manager.load_conversation(conversation_manager.conversation_hash)
-    else:
-        # nate output
-        completion = client.generate_completion(cfg.model, conversation_manager.messages)
-        conversation_manager.append_message({
-            "role": "assistant",
-            "content": completion.choices[0].message.content,
-            "completion": completion
-            })
-
-    print(conversation_manager.messages[-1]["content"])
-    print("Conversation ID: " + conversation_manager.conversation_hash)
-
-    conversation_manager.save_conversation()
+    try:
+        client = OpenAIClient(OpenAI())
+        config = ConfigManager("config.ini").get_config()
+        conversation_manager = ConversationManager(config)
+        
+        nate = NateAI(
+            config,
+            conversation_manager,
+            client
+        )
+        nate.run()
+    except Exception as e:
+        print(f'Error: {e}')
+        return 1
+    return 0
 
 if __name__ == "__main__":
     main()
