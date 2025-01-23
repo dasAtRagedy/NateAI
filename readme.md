@@ -13,9 +13,9 @@ What I found does not suit my fancy, created with a couple of goals in mind:
 ## Prerequisites
 
 You have to have openai api key connected to an account with a valid balance
-Installed Python 3.12.2
-Installed Python module "venv"
-Installed Git
+- Installed Python 3.12.2
+- Installed Python module "venv"
+- Installed Git
 
 ## Setup
 
