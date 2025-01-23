@@ -32,10 +32,7 @@ class Config:
 class ConfigManager:
     """Handles reading and managing configs"""
 
-    def __init__(self, config_name):
-        absolute_dir = os.path.dirname(os.path.dirname(__file__))
-        config_path = os.path.join(absolute_dir, config_name)
-
+    def __init__(self, config_path: Path):
         self.config = self._load_config(config_path)
         self.args = self._parse_args()
 
@@ -61,7 +58,7 @@ class ConfigManager:
             raise ValueError("Message was not provided")
         return args
 
-    def _load_config(self, config_path: str) -> dict:
+    def _load_config(self, config_path: Path) -> dict:
         if not os.path.isfile(config_path):
             raise FileNotFoundError(f"Config file not found: {config_path}")
 
@@ -304,8 +301,9 @@ class NateAI():
 
 def main():
     try:
+        config_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'config.ini'
         client = OpenAIClient(OpenAI())
-        config = ConfigManager("config.ini").get_config()
+        config = ConfigManager(config_path).get_config()
         conversation_manager = ConversationManager(config)
         
         nate = NateAI(
