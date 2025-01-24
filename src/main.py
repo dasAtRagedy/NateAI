@@ -14,6 +14,7 @@ from pathlib import Path
 from docopt import docopt
 
 from nate.config import Config, ConfigManager
+from nate.storage import StorageManager
 from nate.conversation import ConversationManager
 from nate.client import AIClient, OpenAIClient
 
@@ -51,10 +52,15 @@ def main():
     try:
         args = docopt(__doc__)
         config_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'config.ini'
+
         client = OpenAIClient(OpenAI())
         config = ConfigManager(config_path, args).get_config()
-        conversation_manager = ConversationManager(config)
-        
+        storage = StorageManager(
+            base_folder = config.conversation_folder,
+            model = config.model
+        )
+        conversation_manager = ConversationManager(config, storage)
+
         nate = NateAI(
             config,
             conversation_manager,

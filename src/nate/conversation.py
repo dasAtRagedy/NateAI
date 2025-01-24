@@ -2,20 +2,15 @@ import hashlib
 import json
 from typing import Dict, List
 
-from nate.storage import StorageManager
-
 class ConversationManager:
     """Handles conversation state, storage and retrieval"""
 
-    def __init__(self, config):
+    def __init__(self, config, storage):
         self.config = config
         self.messages = []
         self.conversation_hash = None
         self.retrieved = False
-        self.storage = StorageManager(
-            base_folder = self.config.conversation_folder,
-            model = self.config.model
-        )
+        self.storage = storage
         self._initialize_conversation()
 
     def _initialize_conversation(self):
