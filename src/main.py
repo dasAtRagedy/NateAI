@@ -278,7 +278,7 @@ class NateAI():
 
     def run(self):
         """Main execution flow"""
-        if not self._try_load_cache():
+        if self.config.continue_conversation or not self._try_load_cache():
             completion = self.client.generate_completion(self.config.model, self.conversation.messages)
             self.conversation.append_message({
                 'role': "assistant",
