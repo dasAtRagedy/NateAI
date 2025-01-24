@@ -9,7 +9,6 @@ class ConversationManager:
         self.config = config
         self.messages = []
         self.conversation_hash = None
-        self.retrieved = False
         self.storage = storage
         self._initialize_conversation()
 

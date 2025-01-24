@@ -8,8 +8,6 @@ Usage: nate [options] [--] <message> ...
 """
 import os
 from openai import OpenAI
-# from rich.console import Console
-# from rich.markdown import Markdown
 from pathlib import Path
 from docopt import docopt
 
