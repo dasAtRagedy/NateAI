@@ -32,9 +32,9 @@ class Config:
 class ConfigManager:
     """Handles reading and managing configs"""
 
-    def __init__(self, config_path: Path):
+    def __init__(self, config_path: Path, args: Dict):
         self.config = self._load_config(config_path)
-        self.args = self._parse_args()
+        self.args = self._parse_args(args)
 
     def get_config(self) -> Config:
         """Returns Config struct with all settings"""
@@ -52,8 +52,7 @@ class ConfigManager:
             use_system_prompt = not self.args['--no-sys']
         )
 
-    def _parse_args(self) -> dict:
-        args = docopt(__doc__)
+    def _parse_args(self, args) -> dict:
         if "<message>" not in args:
             raise ValueError("Message was not provided")
         return args
@@ -301,9 +300,10 @@ class NateAI():
 
 def main():
     try:
+        args = docopt(__doc__)
         config_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'config.ini'
         client = OpenAIClient(OpenAI())
-        config = ConfigManager(config_path).get_config()
+        config = ConfigManager(config_path, args).get_config()
         conversation_manager = ConversationManager(config)
         
         nate = NateAI(
