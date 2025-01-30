@@ -14,14 +14,15 @@ from nate.app import NateAI
 def main(
     message: str,
     continue_flag: Annotated[bool, typer.Option("--continue", help="Continue the last conversation")] = False,
-    no_sys_flag: Annotated[bool, typer.Option("--no-sys", help="Do not use system prompt")] = False
+    no_sys_flag: Annotated[bool, typer.Option("--no-sys", help="Do not use system prompt")] = False,
+    api_key: Annotated[str, typer.Option("--api-key", help="API key", envvar="OPENAI_API_KEY")] = None
 ):
     args = {(key if not key.endswith("_flag") else key[:-len("_flag")]).replace('_', '-'): value for key, value in locals().items()}
 
     try:
         config_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'config.ini'
 
-        client = OpenAIClient(OpenAI())
+        client = OpenAIClient(OpenAI(api_key=api_key))
         config = ConfigManager(config_path, args).get_config()
         storage = StorageManager(
             base_folder = config.conversation_folder,
