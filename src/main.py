@@ -1,10 +1,8 @@
 import os
 from openai import OpenAI
 from pathlib import Path
-from docopt import docopt
 from typing_extensions import Annotated
 import typer
-import sys
 
 from nate.config import ConfigManager
 from nate.storage import StorageManager
@@ -18,8 +16,7 @@ def main(
     continue_flag: Annotated[bool, typer.Option("--continue", help="Continue the last conversation")] = False,
     no_sys_flag: Annotated[bool, typer.Option("--no-sys", help="Do not use system prompt")] = False
 ):
-    args = {(key if not key.endswith("_flag") else "--"+key[:-len("_flag")]).replace('_', '-'): value for key, value in locals().items()}
-    args["<message>"] = args["message"]
+    args = {(key if not key.endswith("_flag") else key[:-len("_flag")]).replace('_', '-'): value for key, value in locals().items()}
 
     try:
         config_path = Path(os.path.dirname(os.path.dirname(__file__))) / 'config.ini'

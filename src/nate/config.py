@@ -32,13 +32,13 @@ class ConfigManager:
             model = self.config['Model'],
             system_prompt = self.config.get('SystemPrompt', ''),
             conversation_folder = conversation_folder,
-            message = ' '.join(self.args['<message>']),
-            continue_conversation = self.args['--continue'],
-            use_system_prompt = not self.args['--no-sys']
+            message = ' '.join(self.args['message']),
+            continue_conversation = self.args['continue'],
+            use_system_prompt = not self.args['no-sys']
         )
 
     def _parse_args(self, args) -> dict:
-        if "<message>" not in args:
+        if "message" not in args:
             raise ValueError("Message was not provided")
         return args
 
